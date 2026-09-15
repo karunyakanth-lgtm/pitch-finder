@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Pitch Finder</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#14141A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pitch Finder">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #14141A;
+    --panel: #1E1E26;
+    --panel-line: #34343E;
+    --ivory: #F2EEE3;
+    --ivory-dim: #A6A398;
+    --brass: #C9A227;
+    --brass-dim: #6E5E22;
+    --tune: #6FA287;
+    --off: #C1663D;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--ivory);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .stage {
+    width: 100%;
+    max-width: 460px;
+  }
+  @media (min-width: 720px) {
+    .stage { max-width: 560px; }
+  }
+  @media (min-width: 1100px) {
+    .stage { max-width: 640px; }
+  }
+  .label {
+    font-size: 14px;
+    font-style: italic;
+    color: var(--ivory-dim);
+    font-family: 'Fraunces', serif;
+    margin: 0 0 28px;
+    letter-spacing: 0.01em;
+  }
+  .readout {
+    text-align: center;
+    padding: 8px 0 6px;
+  }
+  .note {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: clamp(56px, 16vw, 96px);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--ivory);
+    transition: color 0.15s ease;
+  }
+  .note.silent { color: var(--ivory-dim); }
+  .freq {
+    font-size: 15px;
+    color: var(--ivory-dim);
+    margin-top: 10px;
+    font-variant-numeric: tabular-nums;
+    min-height: 20px;
+  }
+  .meter-wrap {
+    margin: 34px 0 8px;
+  }
+  .meter {
+    position: relative;
+    height: 3px;
+    background: var(--panel-line);
+    border-radius: 2px;
+  }
+  .meter-mid {
+    position: absolute;
+    left: 50%;
+    top: -5px;
+    width: 1px;
+    height: 13px;
+    background: var(--panel-line);
+    transform: translateX(-50%);
+  }
+  .meter-needle {
+    position: absolute;
+    top: -7px;
+    width: 3px;
+    height: 17px;
+    border-radius: 2px;
+    background: var(--ivory-dim);
+    left: 50%;
+    transform: translateX(-50%);
+    transition: left 0.08s linear, background 0.15s ease;
+  }
+  .meter-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--ivory-dim);
+    margin-top: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .keys-wrap {
+    width: 100%;
+    overflow-x: auto;
+    margin: 40px 0 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--panel-line) transparent;
+  }
+  .keys-wrap::-webkit-scrollbar { height: 5px; }
+  .keys-wrap::-webkit-scrollbar-thumb { background: var(--panel-line); border-radius: 3px; }
+  .keys-wrap::-webkit-scrollbar-track { background: transparent; }
+  .keys {
+    display: flex;
+    justify-content: center;
+    width: max-content;
+    min-width: 100%;
+    height: 78px;
+    position: relative;
+  }
+  .wkey {
+    width: 30px;
+    height: 78px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-left: none;
+    position: relative;
+    transition: background 0.15s ease;
+  }
+  .wkey:first-child { border-left: 1px solid var(--panel-line); border-radius: 3px 0 0 3px; }
+  .wkey:last-child { border-radius: 0 3px 3px 0; }
+  .wkey.active { background: var(--brass); border-color: var(--brass); }
+  .bkey {
+    width: 18px;
+    height: 48px;
+    background: var(--ink);
+    border: 1px solid var(--panel-line);
+    position: absolute;
+    top: 0;
+    border-radius: 0 0 3px 3px;
+    z-index: 2;
+    transition: background 0.15s ease;
+  }
+  .bkey.active { background: var(--brass-dim); border-color: var(--brass); }
+  .wkey.scale { border-color: var(--brass-dim); border-width: 2px; }
+  .bkey.scale { border-color: var(--brass-dim); border-width: 2px; }
+  .scroll-hint {
+    text-align: center;
+    font-size: 11px;
+    color: var(--ivory-dim);
+    margin: 6px 0 0;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .scroll-hint.show { opacity: 1; }
+  .keycard {
+    text-align: center;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 20px 20px 16px;
+    margin-top: 30px;
+  }
+  .keycard-label {
+    font-size: 12px;
+    color: var(--ivory-dim);
+    margin: 0 0 6px;
+  }
+  .keyname {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 30px;
+    color: var(--brass);
+    line-height: 1.2;
+  }
+  .keysub {
+    font-size: 12px;
+    color: var(--ivory-dim);
+    margin-top: 6px;
+    min-height: 16px;
+  }
+  .reset-btn {
+    display: inline-block;
+    margin: 14px auto 0;
+    padding: 6px 16px;
+    font-size: 12px;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 40px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--panel-line);
+    transition: background 0.2s ease;
+  }
+  .dot.live {
+    background: var(--tune);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .status {
+    font-size: 13px;
+    color: var(--ivory-dim);
+  }
+  button {
+    display: block;
+    margin: 26px auto 0;
+    padding: 11px 26px;
+    background: transparent;
+    border: 1px solid var(--panel-line);
+    color: var(--ivory);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  button:hover { border-color: var(--brass); }
+  button:active { transform: scale(0.98); }
+  button.listening { border-color: var(--tune); color: var(--tune); }
+  .hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--ivory-dim);
+    margin-top: 14px;
+    min-height: 16px;
+  }
+  .credit {
+    text-align: center;
+    font-size: 11px;
+    color: var(--ivory-dim);
+    letter-spacing: 0.02em;
+    margin: 34px 0 0;
+  }
+  .credit-name {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 500;
+    color: var(--brass);
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <p class="label">Pitch Finder</p>
+
+  <div class="readout">
+    <div class="note silent" id="noteName">—</div>
+    <div class="freq" id="freqOut">Waiting for sound</div>
+  </div>
+
+  <div class="meter-wrap">
+    <div class="meter">
+      <div class="meter-mid"></div>
+      <div class="meter-needle" id="needle"></div>
+    </div>
+    <div class="meter-labels">
+      <span>flat</span>
+      <span>in tune</span>
+      <span>sharp</span>
+    </div>
+  </div>
+
+  <div class="keys-wrap"><div class="keys" id="keys"></div></div>
+  <p class="scroll-hint" id="scrollHint">← swipe to see more keys →</p>
+
+  <div class="keycard">
+    <p class="keycard-label">Song key</p>
+    <div class="keyname" id="keyName">—</div>
+    <div class="keysub" id="keySub">Sing or play a bit of the song — I'll figure out the key</div>
+    <button class="reset-btn" id="resetKeyBtn" type="button">Reset key</button>
+  </div>
+
+  <div class="controls">
+    <div class="dot" id="dot"></div>
+    <span class="status" id="statusText">Not listening</span>
+  </div>
+
+  <button id="toggleBtn">Start listening</button>
+  <p class="hint" id="hint">Sing or play a note near the mic — I'll show you what it is.</p>
+  <p class="credit">Made by <span class="credit-name">Karunya Kanth</span></p>
+</div>
+
+<script>
+(function() {
+  var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  var WHITE_STEPS = [0,2,4,5,7,9,11];
+  var octaveRange = [2,3,4,5];
+  var keysEl = document.getElementById('keys');
+  var whiteKeyEls = [];
+  var blackKeyEls = [];
+
+  octaveRange.forEach(function(oct) {
+    WHITE_STEPS.forEach(function(step) {
+      var el = document.createElement('div');
+      el.className = 'wkey';
+      el.dataset.midi = (oct + 1) * 12 + step;
+      keysEl.appendChild(el);
+      whiteKeyEls.push(el);
+    });
+  });
+  var whiteWidth = 30;
+  var blackOffsets = {1: 1, 3: 2, 6: 4, 8: 5, 10: 6};
+  octaveRange.forEach(function(oct, oi) {
+    [1,3,6,8,10].forEach(function(step) {
+      var el = document.createElement('div');
+      el.className = 'bkey';
+      el.dataset.midi = (oct + 1) * 12 + step;
+      var idx = oi * 7 + blackOffsets[step];
+      el.style.left = (idx * whiteWidth - 9) + 'px';
+      keysEl.appendChild(el);
+      blackKeyEls.push(el);
+    });
+  });
+  keysEl.style.width = (WHITE_STEPS.length * octaveRange.length * whiteWidth) + 'px';
+
+  var keysWrapEl = document.querySelector('.keys-wrap');
+  var scrollHintEl = document.getElementById('scrollHint');
+  function checkOverflow() {
+    if (keysWrapEl.scrollWidth > keysWrapEl.clientWidth + 2) {
+      scrollHintEl.classList.add('show');
+    } else {
+      scrollHintEl.classList.remove('show');
+    }
+  }
+  checkOverflow();
+  window.addEventListener('resize', checkOverflow);
+
+  function highlightKey(midi) {
+    whiteKeyEls.concat(blackKeyEls).forEach(function(el) {
+      var isActive = parseInt(el.dataset.midi, 10) === midi;
+      el.classList.toggle('active', isActive);
+      if (isActive) {
+        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    });
+  }
+
+  function highlightScale(rootPc, intervals) {
+    whiteKeyEls.concat(blackKeyEls).forEach(function(el) {
+      var pc = ((parseInt(el.dataset.midi, 10) % 12) + 12) % 12;
+      var rel = ((pc - rootPc) % 12 + 12) % 12;
+      el.classList.toggle('scale', rootPc !== null && intervals.indexOf(rel) !== -1);
+    });
+  }
+
+  var MAJOR_PROFILE = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+  var MINOR_PROFILE = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+  var MAJOR_INTERVALS = [0,2,4,5,7,9,11];
+  var MINOR_INTERVALS = [0,2,3,5,7,8,10];
+  var pitchHistogram = new Array(12).fill(0);
+  var keySampleCount = 0;
+  var keyNameEl = document.getElementById('keyName');
+  var keySubEl = document.getElementById('keySub');
+  var resetKeyBtn = document.getElementById('resetKeyBtn');
+
+  function correlate(a, b) {
+    var n = a.length, meanA = 0, meanB = 0;
+    for (var i = 0; i < n; i++) { meanA += a[i]; meanB += b[i]; }
+    meanA /= n; meanB /= n;
+    var num = 0, denA = 0, denB = 0;
+    for (var i = 0; i < n; i++) {
+      var da = a[i] - meanA, db = b[i] - meanB;
+      num += da * db; denA += da * da; denB += db * db;
+    }
+    var den = Math.sqrt(denA * denB);
+    return den === 0 ? 0 : num / den;
+  }
+
+  function rotate(arr, n) {
+    return arr.slice(n).concat(arr.slice(0, n));
+  }
+
+  function estimateKey() {
+    var best = { score: -2, pc: 0, mode: 'major' };
+    var second = { score: -2, pc: 0, mode: 'major' };
+    for (var pc = 0; pc < 12; pc++) {
+      var majorScore = correlate(pitchHistogram, rotate(MAJOR_PROFILE, (12 - pc) % 12));
+      var minorScore = correlate(pitchHistogram, rotate(MINOR_PROFILE, (12 - pc) % 12));
+      [{ score: majorScore, pc: pc, mode: 'major' }, { score: minorScore, pc: pc, mode: 'minor' }].forEach(function(cand) {
+        if (cand.score > best.score) { second = best; best = cand; }
+        else if (cand.score > second.score) { second = cand; }
+      });
+    }
+    return { best: best, second: second };
+  }
+
+  function updateKeyDisplay() {
+    if (keySampleCount < 40) {
+      keyNameEl.textContent = '—';
+      keySubEl.textContent = 'Sing or play a bit more — building up a picture';
+      highlightScale(null, []);
+      return;
+    }
+    var est = estimateKey();
+    var rootName = NOTE_NAMES[est.best.pc];
+    var modeLabel = est.best.mode === 'major' ? 'major' : 'minor';
+    keyNameEl.textContent = rootName + ' ' + modeLabel;
+    var runnerUp = NOTE_NAMES[est.second.pc] + ' ' + est.second.mode;
+    keySubEl.textContent = 'Runner-up guess: ' + runnerUp + ' — keep playing to sharpen this';
+    var intervals = est.best.mode === 'major' ? MAJOR_INTERVALS : MINOR_INTERVALS;
+    highlightScale(est.best.pc, intervals);
+  }
+
+  function resetKeyDetection() {
+    pitchHistogram = new Array(12).fill(0);
+    keySampleCount = 0;
+    keyNameEl.textContent = '—';
+    keySubEl.textContent = 'Sing or play a bit of the song — I\u2019ll figure out the key';
+    highlightScale(null, []);
+  }
+
+  resetKeyBtn.addEventListener('click', resetKeyDetection);
+
+  var noteNameEl = document.getElementById('noteName');
+  var freqOutEl = document.getElementById('freqOut');
+  var needleEl = document.getElementById('needle');
+  var dotEl = document.getElementById('dot');
+  var statusEl = document.getElementById('statusText');
+  var btnEl = document.getElementById('toggleBtn');
+  var hintEl = document.getElementById('hint');
+
+  var audioCtx = null, analyser = null, source = null, stream = null, rafId = null;
+  var listening = false;
+  var buf = null;
+
+  function midiFromFreq(f) { return 69 + 12 * Math.log2(f / 440); }
+  function freqFromMidi(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+  function autoCorrelate(buffer, sampleRate) {
+    var SIZE = buffer.length;
+    var rms = 0;
+    for (var i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
+    rms = Math.sqrt(rms / SIZE);
+    if (rms < 0.01) return -1;
+
+    var r1 = 0, r2 = SIZE - 1, thres = 0.2;
+    for (var i = 0; i < SIZE / 2; i++) { if (Math.abs(buffer[i]) < thres) { r1 = i; break; } }
+    for (var i = 1; i < SIZE / 2; i++) { if (Math.abs(buffer[SIZE - i]) < thres) { r2 = SIZE - i; break; } }
+    var trimmed = buffer.slice(r1, r2);
+    var newSize = trimmed.length;
+
+    var c = new Array(newSize).fill(0);
+    for (var lag = 0; lag < newSize; lag++) {
+      for (var i = 0; i < newSize - lag; i++) c[lag] += trimmed[i] * trimmed[i + lag];
+    }
+    var d = 0;
+    while (d < newSize - 1 && c[d] > c[d + 1]) d++;
+    var maxVal = -1, maxPos = -1;
+    for (var i = d; i < newSize; i++) {
+      if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
+    }
+    var T0 = maxPos;
+    if (T0 <= 0) return -1;
+    var x1 = c[T0 - 1] || c[T0], x2 = c[T0], x3 = c[T0 + 1] || c[T0];
+    var a = (x1 + x3 - 2 * x2) / 2;
+    var b = (x3 - x1) / 2;
+    if (a) T0 = T0 - b / (2 * a);
+    return sampleRate / T0;
+  }
+
+  function update(freq) {
+    if (freq < 0 || freq < 60 || freq > 1200 || !isFinite(freq)) {
+      noteNameEl.textContent = '—';
+      noteNameEl.classList.add('silent');
+      freqOutEl.textContent = 'Listening…';
+      needleEl.style.left = '50%';
+      needleEl.style.background = 'var(--ivory-dim)';
+      highlightKey(null);
+      return;
+    }
+    var midi = midiFromFreq(freq);
+    var rounded = Math.round(midi);
+    var cents = Math.round((midi - rounded) * 100);
+    var name = NOTE_NAMES[((rounded % 12) + 12) % 12];
+    var octave = Math.floor(rounded / 12) - 1;
+
+    noteNameEl.textContent = name + octave;
+    noteNameEl.classList.remove('silent');
+    freqOutEl.textContent = freq.toFixed(1) + ' Hz  ·  ' + (cents >= 0 ? '+' : '') + cents + ' cents';
+
+    var pct = 50 + Math.max(-50, Math.min(50, cents));
+    needleEl.style.left = pct + '%';
+    var inTune = Math.abs(cents) <= 8;
+    needleEl.style.background = inTune ? 'var(--tune)' : 'var(--off)';
+
+    highlightKey(rounded);
+
+    var pc = ((rounded % 12) + 12) % 12;
+    pitchHistogram[pc] += 1;
+    keySampleCount += 1;
+    if (keySampleCount % 20 === 0) updateKeyDisplay();
+  }
+
+  function loop() {
+    analyser.getFloatTimeDomainData(buf);
+    var freq = autoCorrelate(buf, audioCtx.sampleRate);
+    update(freq);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      statusEl.textContent = 'Mic blocked on this page';
+      hintEl.textContent = 'Microphone access only works over https:// or localhost — not a local file. Host this page (e.g. Netlify) and open it via its https link.';
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+      .then(function(s) {
+        stream = s;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        buf = new Float32Array(analyser.fftSize);
+        source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+        listening = true;
+        btnEl.textContent = 'Stop listening';
+        btnEl.classList.add('listening');
+        dotEl.classList.add('live');
+        statusEl.textContent = 'Listening';
+        hintEl.textContent = 'Sing or play — I will show the closest note.';
+        resetKeyDetection();
+        loop();
+      })
+      .catch(function(err) {
+        statusEl.textContent = 'Mic access denied';
+        hintEl.textContent = (err && err.message) ? err.message : 'Allow microphone access in your browser settings to use this.';
+      });
+  }
+
+  function stop() {
+    listening = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (source) source.disconnect();
+    if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
+    if (audioCtx) audioCtx.close();
+    btnEl.textContent = 'Start listening';
+    btnEl.classList.remove('listening');
+    dotEl.classList.remove('live');
+    statusEl.textContent = 'Not listening';
+    hintEl.textContent = 'Sing or play a note near the mic — I will show you what it is.';
+    noteNameEl.textContent = '—';
+    noteNameEl.classList.add('silent');
+    freqOutEl.textContent = 'Waiting for sound';
+    needleEl.style.left = '50%';
+    highlightKey(null);
+  }
+
+  btnEl.addEventListener('click', function() {
+    if (listening) stop(); else start();
+  });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(function() {});
+  }
+})();
+</script>
+</body>
+</html>
